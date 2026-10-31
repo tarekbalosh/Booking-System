@@ -16,7 +16,7 @@ import {
   hashAccessToken,
   safeTokenEquals,
 } from "@/lib/booking/reference";
-import { canApprove, canCancel, canReject } from "@/lib/booking/status";
+import { canCancel, canReject } from "@/lib/booking/status";
 import { getBusinessSettings } from "@/lib/booking/settings";
 import {
   createBookingSchema,
