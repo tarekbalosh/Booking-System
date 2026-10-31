@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js
+.next/
+out/
+build/
+next-env.d.ts
+
+# Testing
+coverage/
+
+# Environment files - never commit real credentials
+.env
+.env.*
+!.env.example
+
+# Prisma / local database artifacts
+prisma/*.db
+prisma/*.db-journal
+
+# Logs and OS files
+*.log
+npm-debug.log*
+.DS_Store
+.vercel
+*.tsbuildinfo

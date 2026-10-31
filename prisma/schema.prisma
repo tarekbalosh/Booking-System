@@ -1,0 +1,268 @@
+// Prisma schema for the consultation booking system.
+// The non-overlap guarantee for slot reservations is added in the initial SQL
+// migration as a PostgreSQL exclusion constraint (see prisma/migrations).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AdminRole {
+  OWNER
+  ADMIN
+  STAFF
+}
+
+enum BookingStatus {
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PENDING
+  PAID
+  REFUNDED
+}
+
+enum ExceptionType {
+  CLOSED
+  OPEN
+}
+
+enum NotificationChannel {
+  WHATSAPP
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+model AdminUser {
+  id                  String    @id @default(uuid()) @db.Uuid
+  name                String
+  email               String    @unique
+  passwordHash        String
+  role                AdminRole @default(STAFF)
+  active              Boolean   @default(true)
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+  lastLoginAt         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  sessions      AdminSession[]
+  auditLogs     AuditLog[]
+  statusChanges BookingStatusHistory[]
+
+  @@index([active])
+}
+
+model AdminSession {
+  id         String    @id @default(uuid()) @db.Uuid
+  tokenHash  String    @unique
+  adminId    String    @db.Uuid
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime  @default(now())
+  userAgent  String?
+  admin      AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@index([expiresAt])
+}
+
+model ConsultationService {
+  id              String   @id @default(uuid()) @db.Uuid
+  slug            String   @unique
+  titleAr         String
+  titleEn         String
+  descriptionAr   String
+  descriptionEn   String
+  price           Decimal  @db.Decimal(10, 2)
+  currency        String   @db.VarChar(3)
+  durationMinutes Int
+  active          Boolean  @default(true)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  bookings Booking[]
+
+  @@index([active, sortOrder])
+}
+
+model ConsultationMethod {
+  id             String   @id @default(uuid()) @db.Uuid
+  nameAr         String
+  nameEn         String
+  instructionsAr String   @default("")
+  instructionsEn String   @default("")
+  active         Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  bookings Booking[]
+
+  @@index([active, sortOrder])
+}
+
+model AvailabilityRule {
+  id        String   @id @default(uuid()) @db.Uuid
+  weekday   Int
+  startTime String   @db.VarChar(5)
+  endTime   String   @db.VarChar(5)
+  active    Boolean  @default(true)
+  timezone  String   @default("Asia/Kuala_Lumpur")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([weekday, startTime, endTime])
+  @@index([weekday, active])
+}
+
+model AvailabilityException {
+  id        String        @id @default(uuid()) @db.Uuid
+  date      DateTime      @db.Date
+  startTime String?       @db.VarChar(5)
+  endTime   String?       @db.VarChar(5)
+  type      ExceptionType
+  reason    String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([date])
+}
+
+model Booking {
+  id                String        @id @default(uuid()) @db.Uuid
+  publicReference   String        @unique
+  accessTokenHash   String
+  customerName      String
+  customerEmail     String
+  customerPhone     String
+  consultationTopic String
+  serviceId         String        @db.Uuid
+  methodId          String        @db.Uuid
+  startAt           DateTime
+  endAt             DateTime
+  timezone          String
+  locale            String        @default("ar") @db.VarChar(2)
+  status            BookingStatus @default(PENDING_APPROVAL)
+  paymentStatus     PaymentStatus @default(UNPAID)
+  priceSnapshot     Decimal       @db.Decimal(10, 2)
+  currencySnapshot  String        @db.VarChar(3)
+  expiresAt         DateTime
+  approvedAt        DateTime?
+  rejectedAt        DateTime?
+  adminNotes        String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  service        ConsultationService    @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  method         ConsultationMethod     @relation(fields: [methodId], references: [id], onDelete: Restrict)
+  slotLock       SlotLock?
+  notifications  NotificationLog[]
+  statusHistory  BookingStatusHistory[]
+
+  @@index([status, startAt])
+  @@index([customerEmail])
+  @@index([expiresAt])
+  @@index([createdAt])
+  @@index([serviceId])
+}
+
+// One active row per held/confirmed slot. `releasedAt` is set when a hold
+// expires, a request is rejected, or a booking is cancelled. A PostgreSQL
+// exclusion constraint prevents overlapping rows with releasedAt IS NULL.
+model SlotLock {
+  id         String    @id @default(uuid()) @db.Uuid
+  bookingId  String    @unique @db.Uuid
+  startAt    DateTime
+  endAt      DateTime
+  releasedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([releasedAt, startAt])
+  @@index([startAt, endAt])
+}
+
+model NotificationLog {
+  id                String             @id @default(uuid()) @db.Uuid
+  bookingId         String             @db.Uuid
+  channel           NotificationChannel @default(WHATSAPP)
+  recipient         String
+  notificationType  String
+  status            NotificationStatus  @default(PENDING)
+  providerMessageId String?
+  errorCode         String?
+  attempts          Int                @default(0)
+  idempotencyKey    String             @unique
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  sentAt            DateTime?
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model BookingStatusHistory {
+  id        String        @id @default(uuid()) @db.Uuid
+  bookingId String        @db.Uuid
+  fromStatus BookingStatus?
+  toStatus  BookingStatus
+  adminId   String?       @db.Uuid
+  note      String?
+  createdAt DateTime      @default(now())
+
+  booking Booking    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  admin   AdminUser? @relation(fields: [adminId], references: [id], onDelete: SetNull)
+
+  @@index([bookingId, createdAt])
+}
+
+model AuditLog {
+  id         String    @id @default(uuid()) @db.Uuid
+  adminId    String?   @db.Uuid
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  createdAt  DateTime  @default(now())
+
+  admin AdminUser? @relation(fields: [adminId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+model BusinessSettings {
+  id                 Int      @id @default(1)
+  brandNameAr        String   @default("استشارات")
+  brandNameEn        String   @default("Consultations")
+  providerNameAr     String   @default("")
+  providerNameEn     String   @default("")
+  timezone           String   @default("Asia/Kuala_Lumpur")
+  slotDurationMinutes Int     @default(60)
+  bufferMinutes      Int      @default(0)
+  dailyMaxBookings   Int      @default(6)
+  bookingWindowDays  Int      @default(30)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
