@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { createBookingRequest } from "@/server/services/bookings";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { isLocale } from "@/lib/i18n/config";
@@ -36,6 +37,14 @@ export async function createBookingAction(
     }
     return { error: dict.booking.genericError };
   }
+
+  const cookieStore = await cookies();
+  cookieStore.set("last_booking_ref", result.reference, {
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365, // 1 year
+    sameSite: "lax",
+    httpOnly: false,
+  });
 
   redirect(
     `/${locale}/booking/received?ref=${encodeURIComponent(result.reference)}&token=${encodeURIComponent(result.accessToken)}`,

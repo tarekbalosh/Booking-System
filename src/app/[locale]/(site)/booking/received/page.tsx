@@ -8,6 +8,7 @@ import { formatDateTime } from "@/lib/timezone";
 import { BookingSummary } from "@/components/booking/booking-summary";
 import { CopyButton } from "@/components/ui/copy-button";
 import { CopyField } from "@/components/ui/copy-field";
+import { BookingStorageSync } from "@/components/booking/booking-storage-sync";
 
 export const dynamic = "force-dynamic";
 
@@ -56,6 +57,7 @@ export default async function ReceivedPage({
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-12 sm:px-6">
+      <BookingStorageSync reference={booking.publicReference} />
       <header className="text-center">
         <span
           className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-amber-100 text-xl"
