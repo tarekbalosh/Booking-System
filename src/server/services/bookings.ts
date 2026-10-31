@@ -639,14 +639,15 @@ function decisionMessage(code: string): string {
   }
 }
 
-export async function getBookingForCustomer(reference: string, token: string) {
+export async function getBookingForCustomer(reference: string, token?: string) {
+  const cleanRef = reference.trim().toUpperCase();
   const db = getDb();
   const booking = await db.booking.findUnique({
-    where: { publicReference: reference },
+    where: { publicReference: cleanRef },
     include: { service: true, method: true },
   });
   if (!booking) return null;
-  if (!safeTokenEquals(token, booking.accessTokenHash)) return null;
+  if (token && !safeTokenEquals(token, booking.accessTokenHash)) return null;
   return booking;
 }
 

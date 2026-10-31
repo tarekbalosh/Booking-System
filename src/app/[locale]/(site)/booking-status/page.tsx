@@ -15,16 +15,17 @@ export default async function BookingStatusPage({
   searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ ref?: string; token?: string }>;
+  searchParams: Promise<{ ref?: string }>;
 }) {
   const { locale } = await params;
-  const { ref, token } = await searchParams;
+  const { ref } = await searchParams;
   if (!isLocale(locale)) notFound();
   const dict = getDictionary(locale);
 
-  const hasLookup = Boolean(ref && token);
+  const cleanRef = ref?.trim().toUpperCase();
+  const hasLookup = Boolean(cleanRef);
   const booking = hasLookup
-    ? await getBookingForCustomer(ref!, token!).catch(() => null)
+    ? await getBookingForCustomer(cleanRef!).catch(() => null)
     : null;
 
   return (
@@ -37,47 +38,34 @@ export default async function BookingStatusPage({
       <form
         method="get"
         action={`/${locale}/booking-status`}
-        className="mt-8 grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
+        className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
       >
         <div>
           <label htmlFor="ref" className="block text-sm font-semibold text-slate-800">
             {dict.statusPage.referenceLabel}
           </label>
-          <input
-            id="ref"
-            name="ref"
-            defaultValue={ref ?? ""}
-            required
-            minLength={6}
-            maxLength={32}
-            autoComplete="off"
-            dir="ltr"
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-mono text-sm"
-          />
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+            <input
+              id="ref"
+              name="ref"
+              defaultValue={cleanRef ?? ""}
+              required
+              minLength={4}
+              maxLength={32}
+              placeholder={dict.statusPage.referencePlaceholder}
+              autoComplete="off"
+              dir="ltr"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2.5 font-mono text-sm uppercase tracking-wider focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200"
+            />
+            <button
+              type="submit"
+              className="shrink-0 rounded-lg bg-brand-700 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-800"
+            >
+              {dict.statusPage.lookup}
+            </button>
+          </div>
+          <p className="mt-1.5 text-xs text-slate-500">{dict.statusPage.referenceHint}</p>
         </div>
-        <div>
-          <label htmlFor="token" className="block text-sm font-semibold text-slate-800">
-            {dict.statusPage.tokenLabel}
-          </label>
-          <input
-            id="token"
-            name="token"
-            type="password"
-            defaultValue={token ?? ""}
-            required
-            minLength={20}
-            autoComplete="off"
-            dir="ltr"
-            className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2.5 font-mono text-sm"
-          />
-          <p className="mt-1.5 text-xs text-slate-500">{dict.statusPage.tokenHint}</p>
-        </div>
-        <button
-          type="submit"
-          className="w-fit rounded-lg bg-brand-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-800"
-        >
-          {dict.statusPage.lookup}
-        </button>
       </form>
 
       {hasLookup && !booking && (
@@ -98,7 +86,7 @@ export default async function BookingStatusPage({
             </Link>
             <Link
               href={`/${locale}`}
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
               {dict.common.home}
             </Link>

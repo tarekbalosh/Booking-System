@@ -29,6 +29,8 @@ const paymentKey: Record<PaymentStatus, keyof Dictionary["payment"]> = {
   REFUNDED: "refunded",
 };
 
+import { CopyButton } from "@/components/ui/copy-button";
+
 export function BookingSummary({
   booking,
   dict,
@@ -55,10 +57,15 @@ export function BookingSummary({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <StatusBadge status={booking.status} dict={dict} />
-        <p className="text-sm text-slate-600">
-          {dict.received.referenceLabel}:{" "}
+        <div className="flex items-center gap-2 text-sm text-slate-600">
+          <span>{dict.received.referenceLabel}:</span>
           <span className="font-mono font-semibold text-slate-900">{booking.publicReference}</span>
-        </p>
+          <CopyButton
+            text={booking.publicReference}
+            copyLabel={dict.common.copy}
+            copiedLabel={dict.common.copied}
+          />
+        </div>
       </div>
 
       <p
