@@ -27,6 +27,7 @@ const resultMessages = [
   { key: "cancelled", tone: "warning" as const, textKey: "cancelledResult" as const },
   { key: "expired", tone: "warning" as const, textKey: "expiredResult" as const },
   { key: "already", tone: "warning" as const, textKey: "alreadyDone" as const },
+  { key: "taken", tone: "error" as const, textKey: "slotTakenResult" as const },
   { key: "failed", tone: "error" as const, textKey: "actionFailed" as const },
 ];
 
@@ -204,6 +205,12 @@ export default async function BookingDetailPage({
             <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-sm font-semibold text-slate-900">{dict.common.status}</h2>
               <div className="mt-4 space-y-4">
+                {booking.status === "PENDING_APPROVAL" && booking.expiresAt.getTime() <= now.getTime() && (
+                  <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
+                    {dict.admin.holdNotice}
+                  </p>
+                )}
+
                 {canApprove(booking, now) && (
                   <form action={approveBookingAction} className="space-y-2">
                     <input type="hidden" name="locale" value={locale} />

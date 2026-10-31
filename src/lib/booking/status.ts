@@ -3,18 +3,25 @@ import type { BookingStatus } from "@prisma/client";
 export type BookingLike = {
   status: BookingStatus;
   expiresAt: Date;
+  startAt?: Date;
   approvedAt?: Date | null;
   rejectedAt?: Date | null;
 };
 
-/** Approval is only possible while the request is pending and the hold is live. */
+/**
+ * An admin can approve a booking if it is pending or expired, as long as
+ * the consultation time is in the future.
+ */
 export function canApprove(booking: BookingLike, now: Date): boolean {
-  return booking.status === "PENDING_APPROVAL" && booking.expiresAt.getTime() > now.getTime();
+  if (booking.startAt && booking.startAt.getTime() <= now.getTime()) {
+    return false;
+  }
+  return booking.status === "PENDING_APPROVAL" || booking.status === "EXPIRED";
 }
 
-/** Rejection is allowed while the request is still pending (even if expired). */
+/** Rejection is allowed while the request is pending or expired. */
 export function canReject(booking: BookingLike): boolean {
-  return booking.status === "PENDING_APPROVAL";
+  return booking.status === "PENDING_APPROVAL" || booking.status === "EXPIRED";
 }
 
 export function canCancel(booking: BookingLike): boolean {

@@ -24,7 +24,7 @@ function localeFrom(formData: FormData): "ar" | "en" {
 function decisionRedirect(
   locale: "ar" | "en",
   bookingId: string,
-  result: "approved" | "rejected" | "cancelled" | "expired" | "already" | "failed",
+  result: "approved" | "rejected" | "cancelled" | "expired" | "already" | "failed" | "taken",
 ): string {
   return `/${locale}/admin/bookings/${bookingId}?result=${result}`;
 }
@@ -51,7 +51,9 @@ export async function approveBookingAction(formData: FormData): Promise<void> {
       ? "expired"
       : result.code === "ALREADY_DONE"
         ? "already"
-        : "failed";
+        : result.code === "SLOT_TAKEN"
+          ? "taken"
+          : "failed";
   redirect(decisionRedirect(locale, parsed.data.bookingId, code));
 }
 

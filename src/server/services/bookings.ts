@@ -352,7 +352,11 @@ class SlotUnavailableError extends Error {
 
 type DecisionResult =
   | { ok: true; bookingId: string; reference: string }
-  | { ok: false; code: "NOT_FOUND" | "INVALID_STATE" | "EXPIRED" | "ALREADY_DONE" | "DATABASE"; message: string };
+  | {
+      ok: false;
+      code: "NOT_FOUND" | "INVALID_STATE" | "EXPIRED" | "ALREADY_DONE" | "SLOT_TAKEN" | "DATABASE";
+      message: string;
+    };
 
 export async function approveBookingRequest(
   bookingId: string,
@@ -371,44 +375,43 @@ export async function approveBookingRequest(
       });
       if (!current) throw new DecisionError("NOT_FOUND");
       if (current.status === "APPROVED") throw new DecisionError("ALREADY_DONE");
-      if (current.status !== "PENDING_APPROVAL") throw new DecisionError("INVALID_STATE");
-
-      if (!canApprove(current, now)) {
-        await tx.slotLock.updateMany({
-          where: { bookingId: current.id, releasedAt: null },
-          data: { releasedAt: now },
-        });
-        await tx.booking.update({
-          where: { id: current.id },
-          data: { status: "EXPIRED" },
-        });
-        await tx.bookingStatusHistory.create({
-          data: {
-            bookingId: current.id,
-            fromStatus: "PENDING_APPROVAL",
-            toStatus: "EXPIRED",
-            adminId: admin.id,
-            note: "Approval attempted after the hold expired",
-          },
-        });
-        await tx.auditLog.create({
-          data: {
-            adminId: admin.id,
-            action: "booking.approve_rejected_expired",
-            entityType: "Booking",
-            entityId: current.id,
-            metadata: { reason: "hold_expired" },
-          },
-        });
-        throw new DecisionError("EXPIRED");
-      }
-
-      if (!current.slotLock || current.slotLock.releasedAt) {
+      if (current.status !== "PENDING_APPROVAL" && current.status !== "EXPIRED") {
         throw new DecisionError("INVALID_STATE");
       }
       if (current.startAt.getTime() <= now.getTime()) {
         throw new DecisionError("INVALID_STATE");
       }
+
+      // Check if another active booking currently holds this slot
+      const conflictingLock = await tx.slotLock.findFirst({
+        where: {
+          releasedAt: null,
+          bookingId: { not: current.id },
+          startAt: { lt: current.endAt },
+          endAt: { gt: current.startAt },
+        },
+      });
+      if (conflictingLock) {
+        throw new DecisionError("SLOT_TAKEN");
+      }
+
+      if (current.slotLock) {
+        await tx.slotLock.update({
+          where: { id: current.slotLock.id },
+          data: { releasedAt: null },
+        });
+      } else {
+        await tx.slotLock.create({
+          data: {
+            bookingId: current.id,
+            startAt: current.startAt,
+            endAt: current.endAt,
+          },
+        });
+      }
+
+      const wasExpired =
+        current.status === "EXPIRED" || current.expiresAt.getTime() <= now.getTime();
 
       const updated = await tx.booking.update({
         where: { id: current.id },
@@ -422,20 +425,22 @@ export async function approveBookingRequest(
       await tx.bookingStatusHistory.create({
         data: {
           bookingId: current.id,
-          fromStatus: "PENDING_APPROVAL",
+          fromStatus: current.status,
           toStatus: "APPROVED",
           adminId: admin.id,
-          note: note ?? null,
+          note: note ?? (wasExpired ? "تمت الموافقة بقرار إداري بعد انتهاء المهلة المؤقتة" : null),
         },
       });
 
       await tx.auditLog.create({
         data: {
           adminId: admin.id,
-          action: "booking.approved",
+          action: wasExpired
+            ? "booking.approved_administrative_override"
+            : "booking.approved",
           entityType: "Booking",
           entityId: current.id,
-          metadata: { reference: current.publicReference },
+          metadata: { reference: current.publicReference, wasExpired },
         },
       });
 
@@ -606,7 +611,14 @@ export async function updateBookingNotes(
 }
 
 class DecisionError extends Error {
-  constructor(public readonly code: "NOT_FOUND" | "INVALID_STATE" | "EXPIRED" | "ALREADY_DONE") {
+  constructor(
+    public readonly code:
+      | "NOT_FOUND"
+      | "INVALID_STATE"
+      | "EXPIRED"
+      | "ALREADY_DONE"
+      | "SLOT_TAKEN",
+  ) {
     super(code);
     this.name = "DecisionError";
   }
@@ -620,6 +632,8 @@ function decisionMessage(code: string): string {
       return "The 30-minute hold has expired. The slot was released.";
     case "ALREADY_DONE":
       return "This action has already been completed.";
+    case "SLOT_TAKEN":
+      return "This slot has already been taken by another booking.";
     default:
       return "This booking can no longer be changed.";
   }
