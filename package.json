@@ -14,10 +14,10 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "db:seed": "tsx prisma/seed.ts",
+    "db:seed": "tsx --env-file=.env prisma/seed.ts",
     "db:studio": "prisma studio",
-    "admin:create": "tsx scripts/create-admin.ts",
-    "bookings:expire": "tsx scripts/expire-holds.ts"
+    "admin:create": "tsx --env-file=.env scripts/create-admin.ts",
+    "bookings:expire": "tsx --env-file=.env scripts/expire-holds.ts"
   },
   "dependencies": {
     "@prisma/client": "6.19.3",

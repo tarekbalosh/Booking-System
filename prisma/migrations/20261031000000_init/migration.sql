@@ -1,5 +1,6 @@
 -- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
+CREATE EXTENSION IF NOT EXISTS btree_gist;
 
 -- CreateEnum
 CREATE TYPE "AdminRole" AS ENUM ('OWNER', 'ADMIN', 'STAFF');
@@ -333,7 +334,7 @@ ALTER TABLE "Booking"
 ALTER TABLE "SlotLock"
   ADD CONSTRAINT "SlotLock_end_after_start" CHECK ("endAt" > "startAt"),
   ADD CONSTRAINT "SlotLock_no_overlap"
-    EXCLUDE USING gist (tstzrange("startAt", "endAt", '[)') WITH &&)
+    EXCLUDE USING gist (tsrange("startAt", "endAt", '[)') WITH &&)
     WHERE ("releasedAt" IS NULL);
 
 ALTER TABLE "ConsultationService"
@@ -344,4 +345,4 @@ ALTER TABLE "AvailabilityRule"
   ADD CONSTRAINT "AvailabilityRule_weekday_range" CHECK ("weekday" BETWEEN 0 AND 6),
   ADD CONSTRAINT "AvailabilityRule_time_order" CHECK ("startTime" < "endTime");
 
-CREATE INDEX "SlotLock_active_range_idx" ON "SlotLock" USING gist (tstzrange("startAt", "endAt", '[)')) WHERE "releasedAt" IS NULL;
+CREATE INDEX "SlotLock_active_range_idx" ON "SlotLock" USING gist (tsrange("startAt", "endAt", '[)')) WHERE "releasedAt" IS NULL;
