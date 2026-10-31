@@ -223,7 +223,7 @@ export default async function AdminUsersPage({
                   name="password"
                   type="password"
                   required
-                  minLength={12}
+                  minLength={3}
                   placeholder="••••••••••••"
                   className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                 />

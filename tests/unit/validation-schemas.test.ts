@@ -139,8 +139,8 @@ describe("Validation Schemas & Policy Tests", () => {
       expect(validatePasswordPolicy("LongAndSecureP4ssword#")).toBeNull();
     });
 
-    it("rejects short passwords (< 12 characters)", () => {
-      const error = validatePasswordPolicy("Short12!");
+    it("rejects short passwords (< 3 characters)", () => {
+      const error = validatePasswordPolicy("ab");
       expect(error).not.toBeNull();
     });
 

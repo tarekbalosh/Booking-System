@@ -132,7 +132,7 @@ export const adminUserCreateSchema = z.object({
   name: trimmed(2, 120),
   email: emailSchema,
   role: z.enum(["OWNER", "ADMIN", "STAFF"]),
-  password: z.string().min(12).max(128),
+  password: z.string().min(3).max(128),
 });
 
 export const adminUserUpdateSchema = z.object({

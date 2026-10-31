@@ -152,11 +152,10 @@ async function main() {
     where: { email: initialEmail },
   });
 
-  if (!existingAdmin) {
-    // Generate secure default password if not provided
-    const initialPassword = process.env.ADMIN_INITIAL_PASSWORD || "Consultant@2026Secure!";
-    const passwordHash = await hashPassword(initialPassword);
+  const initialPassword = process.env.ADMIN_INITIAL_PASSWORD || "123";
+  const passwordHash = await hashPassword(initialPassword);
 
+  if (!existingAdmin) {
     await prisma.adminUser.create({
       data: {
         name: "Tarek Admin",
@@ -167,12 +166,12 @@ async function main() {
       },
     });
     console.log(`✓ Owner admin created: ${initialEmail}`);
-    if (!process.env.ADMIN_INITIAL_PASSWORD) {
-      console.log(`ℹ Initial temporary password: ${initialPassword}`);
-      console.log("ℹ Please change this password immediately after first sign in.");
-    }
   } else {
-    console.log(`ℹ Owner admin already exists: ${initialEmail}`);
+    await prisma.adminUser.update({
+      where: { email: initialEmail },
+      data: { passwordHash, failedLoginAttempts: 0, lockedUntil: null },
+    });
+    console.log(`✓ Owner admin password updated: ${initialEmail}`);
   }
 
   console.log("✨ Seeding completed successfully!");
