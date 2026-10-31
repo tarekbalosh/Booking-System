@@ -445,7 +445,7 @@ export async function approveBookingRequest(
       });
 
       return updated;
-    });
+    }, { maxWait: 15_000, timeout: 30_000 });
 
     await notifyCustomerOfDecision(booking, "APPROVED").catch(() => undefined);
     return { ok: true, bookingId: booking.id, reference: booking.publicReference };
@@ -513,7 +513,7 @@ export async function rejectBookingRequest(
       });
 
       return updated;
-    });
+    }, { maxWait: 15_000, timeout: 30_000 });
 
     await notifyCustomerOfDecision(booking, "REJECTED").catch(() => undefined);
     return { ok: true, bookingId: booking.id, reference: booking.publicReference };
@@ -575,7 +575,7 @@ export async function cancelBookingRequest(
       });
 
       return current;
-    });
+    }, { maxWait: 15_000, timeout: 30_000 });
 
     return { ok: true, bookingId: booking.id, reference: booking.publicReference };
   } catch (error) {

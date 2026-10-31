@@ -129,7 +129,7 @@ export async function updateAdminUserAction(formData: FormData): Promise<void> {
           metadata: { role: parsed.data.role },
         }),
       });
-    });
+    }, { maxWait: 15_000, timeout: 30_000 });
   } catch (error) {
     if (error instanceof UserActionError) {
       redirect(`/${locale}/admin/users?error=${error.code}`);
