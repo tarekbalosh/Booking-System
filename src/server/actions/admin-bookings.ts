@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { z } from "zod";
 import { requireAdminAction } from "@/lib/auth/session";
 import { getDb } from "@/lib/db/prisma";
 import {
@@ -13,6 +14,7 @@ import {
   cancelBookingRequest,
   rejectBookingRequest,
   updateBookingNotes,
+  rescheduleBookingRequest,
 } from "@/server/services/bookings";
 import { retryNotification } from "@/lib/notifications/service";
 import { auditData } from "@/server/audit";
@@ -24,7 +26,7 @@ function localeFrom(formData: FormData): "ar" | "en" {
 function decisionRedirect(
   locale: "ar" | "en",
   bookingId: string,
-  result: "approved" | "rejected" | "cancelled" | "expired" | "already" | "failed" | "taken",
+  result: "approved" | "rejected" | "cancelled" | "expired" | "already" | "failed" | "taken" | "rescheduled" | "unavailable",
 ): string {
   return `/${locale}/admin/bookings/${bookingId}?result=${result}`;
 }
@@ -111,6 +113,28 @@ export async function saveBookingNotesAction(formData: FormData): Promise<void> 
   await updateBookingNotes(parsed.data.bookingId, admin, parsed.data.adminNotes);
   revalidatePath(`/${locale}/admin/bookings/${parsed.data.bookingId}`);
   redirect(`/${locale}/admin/bookings/${parsed.data.bookingId}?notes=saved`);
+}
+
+export async function rescheduleBookingAction(formData: FormData): Promise<void> {
+  const admin = await requireAdminAction("bookings:decide");
+  const locale = localeFrom(formData);
+  const parsed = z
+    .object({ bookingId: z.uuid(), startAt: z.iso.datetime() })
+    .safeParse({ bookingId: formData.get("bookingId"), startAt: formData.get("startAt") });
+  if (!parsed.success) redirect(`/${locale}/admin/bookings?error=invalid`);
+
+  const result = await rescheduleBookingRequest(parsed.data.bookingId, admin, parsed.data.startAt);
+  revalidatePath(`/${locale}/admin/bookings`);
+  revalidatePath(`/${locale}/admin/bookings/${parsed.data.bookingId}`);
+  revalidatePath(`/${locale}/admin`);
+  revalidatePath(`/${locale}/admin/calendar`);
+  redirect(
+    decisionRedirect(
+      locale,
+      parsed.data.bookingId,
+      result.ok ? "rescheduled" : result.code === "SLOT_UNAVAILABLE" ? "unavailable" : "failed",
+    ),
+  );
 }
 
 export async function retryNotificationAction(formData: FormData): Promise<void> {

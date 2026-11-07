@@ -5,6 +5,9 @@ import { getDb } from "@/lib/db/prisma";
 import { requireAdminPage } from "@/lib/auth/session";
 import { hasPermission } from "@/lib/auth/permissions";
 import { getDictionary } from "@/lib/i18n/dictionaries";
+import { getAdminExtra } from "@/lib/i18n/admin-extra";
+import { getPublicAvailability } from "@/server/services/bookings";
+import { isValidDateKey } from "@/lib/timezone";
 import { isLocale } from "@/lib/i18n/config";
 import { canApprove, canCancel, canReject } from "@/lib/booking/status";
 import { formatDateTime } from "@/lib/timezone";
@@ -17,6 +20,7 @@ import {
   cancelBookingAction,
   rejectBookingAction,
   saveBookingNotesAction,
+  rescheduleBookingAction,
 } from "@/server/actions/admin-bookings";
 
 export const dynamic = "force-dynamic";
@@ -31,20 +35,26 @@ const resultMessages = [
   { key: "failed", tone: "error" as const, textKey: "actionFailed" as const },
 ];
 
+const extraResultMessages = [
+  { key: "rescheduled", tone: "success" as const, textKey: "rescheduledResult" as const },
+  { key: "unavailable", tone: "error" as const, textKey: "rescheduleFailed" as const },
+];
+
 export default async function BookingDetailPage({
   params,
   searchParams,
 }: {
   params: Promise<{ locale: string; id: string }>;
-  searchParams: Promise<{ result?: string; notes?: string }>;
+  searchParams: Promise<{ result?: string; notes?: string; rdate?: string }>;
 }) {
   const { locale, id } = await params;
-  const { result, notes } = await searchParams;
+  const { result, notes, rdate } = await searchParams;
   if (!isLocale(locale)) notFound();
   if (!z.uuid().safeParse(id).success) notFound();
 
   const admin = await requireAdminPage(locale, "bookings:view");
   const dict = getDictionary(locale);
+  const x = getAdminExtra(locale);
   const db = getDb();
 
   const booking = await db.booking.findUnique({
@@ -67,6 +77,11 @@ export default async function BookingDetailPage({
   const canDecide = hasPermission(admin.role, "bookings:decide");
   const canWriteNotes = hasPermission(admin.role, "bookings:notes");
   const message = resultMessages.find((item) => item.key === result);
+  const extraMessage = extraResultMessages.find((item) => item.key === result);
+  const canMove = canDecide && canCancel(booking) && booking.startAt.getTime() > now.getTime();
+  const dateKey = rdate && isValidDateKey(rdate) ? rdate : undefined;
+  const slotResult =
+    canMove && dateKey ? await getPublicAvailability(booking.serviceId, dateKey).catch(() => null) : null;
 
   return (
     <div className="space-y-6">
@@ -94,6 +109,18 @@ export default async function BookingDetailPage({
           {dict.admin[message.textKey]}
         </p>
       )}
+      {extraMessage && (
+        <p
+          role="status"
+          className={`rounded-lg border px-4 py-3 text-sm ${
+            extraMessage.tone === "success"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+              : "border-rose-200 bg-rose-50 text-rose-800"
+          }`}
+        >
+          {x[extraMessage.textKey]}
+        </p>
+      )}
       {notes === "saved" && (
         <p role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
           {dict.admin.saved}
@@ -107,7 +134,14 @@ export default async function BookingDetailPage({
             <p className="mt-1 font-mono text-sm text-slate-500">{booking.publicReference}</p>
 
             <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2">
-              <Item label={dict.admin.customer}>{booking.customerName}</Item>
+              <Item label={dict.admin.customer}>
+                <Link
+                  href={`/${locale}/admin/customers/${encodeURIComponent(booking.customerEmail.toLowerCase())}`}
+                  className="text-brand-700 underline"
+                >
+                  {booking.customerName}
+                </Link>
+              </Item>
               <Item label={dict.common.email}>
                 <a href={`mailto:${booking.customerEmail}`} className="text-brand-700 underline">
                   {booking.customerEmail}
@@ -221,9 +255,12 @@ export default async function BookingDetailPage({
                       maxLength={1000}
                       className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                     />
-                    <SubmitButton className="w-full rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-60">
+                    <ConfirmSubmit
+                      message={dict.admin.approveConfirm}
+                      className="w-full rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-800"
+                    >
                       {dict.admin.approve}
-                    </SubmitButton>
+                    </ConfirmSubmit>
                   </form>
                 )}
 
@@ -268,6 +305,55 @@ export default async function BookingDetailPage({
             <p className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-600 shadow-sm">
               {dict.admin.forbidden}
             </p>
+          )}
+
+          {canMove && (
+            <div id="reschedule" className="scroll-mt-24 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 className="text-sm font-semibold text-slate-900">{x.reschedule}</h2>
+              <p className="mt-1 text-xs text-slate-500">{x.rescheduleHint}</p>
+              <form method="get" className="mt-3 flex items-end gap-2">
+                <div className="flex-1">
+                  <label htmlFor="rdate" className="block text-xs font-medium text-slate-600">{x.newDate}</label>
+                  <input
+                    id="rdate"
+                    name="rdate"
+                    type="date"
+                    defaultValue={dateKey ?? ""}
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2 text-sm"
+                  />
+                </div>
+                <button type="submit" className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:border-brand-400">
+                  {dict.common.search}
+                </button>
+              </form>
+              {dateKey && slotResult && slotResult.ok && (
+                slotResult.slots.length === 0 ? (
+                  <p className="mt-3 text-sm text-slate-500">{x.rescheduleFailed}</p>
+                ) : (
+                  <form action={rescheduleBookingAction} className="mt-3 space-y-3">
+                    <input type="hidden" name="locale" value={locale} />
+                    <input type="hidden" name="bookingId" value={booking.id} />
+                    <fieldset>
+                      <legend className="text-xs font-medium text-slate-600">{x.newStart}</legend>
+                      <div className="mt-2 grid grid-cols-3 gap-2">
+                        {slotResult.slots.map((slot) => (
+                          <label key={slot.startAt} className="cursor-pointer rounded-lg border border-slate-300 px-2 py-1.5 text-center text-sm has-[:checked]:border-brand-700 has-[:checked]:bg-brand-50">
+                            <input type="radio" name="startAt" value={slot.startAt} required className="sr-only" />
+                            {slot.timeLabel}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+                    <ConfirmSubmit
+                      message={x.rescheduleConfirm}
+                      className="w-full rounded-lg bg-brand-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-800"
+                    >
+                      {x.reschedule}
+                    </ConfirmSubmit>
+                  </form>
+                )
+              )}
+            </div>
           )}
 
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">

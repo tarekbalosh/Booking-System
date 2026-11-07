@@ -12,6 +12,7 @@ import {
   addAvailabilityExceptionAction,
   deleteAvailabilityExceptionAction,
 } from "@/server/actions/admin-schedule";
+import { SlotLocksPanel } from "@/components/admin/slot-locks-panel";
 import { SubmitButton } from "@/components/ui/submit-button";
 
 export const dynamic = "force-dynamic";
@@ -432,6 +433,7 @@ export default async function AdminAvailabilityPage({
           )}
         </div>
       </div>
+      <SlotLocksPanel locale={locale} timezone={settings.timezone} />
     </div>
   );
 }

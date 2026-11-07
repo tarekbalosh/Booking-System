@@ -610,6 +610,120 @@ export async function updateBookingNotes(
   return { ok: true };
 }
 
+/**
+ * Moves a pending or confirmed booking to another server-validated free slot.
+ * Runs in one transaction under the same per-day advisory lock used for new
+ * bookings, so a reschedule can never double-reserve a slot. The booking's own
+ * current lock is excluded from conflict checks.
+ */
+export async function rescheduleBookingRequest(
+  bookingId: string,
+  admin: CurrentAdmin,
+  newStartIso: string,
+): Promise<
+  | { ok: true; bookingId: string }
+  | { ok: false; code: "NOT_FOUND" | "INVALID_STATE" | "SLOT_UNAVAILABLE" | "DATABASE" }
+> {
+  const requestedStart = new Date(newStartIso);
+  if (Number.isNaN(requestedStart.getTime())) return { ok: false, code: "SLOT_UNAVAILABLE" };
+
+  const db = getDb();
+  const settings = await getBusinessSettings();
+  const now = new Date();
+  const dateKey = dateKeyInTimeZone(requestedStart, settings.timezone);
+
+  try {
+    const { rules, exceptions } = await loadRulesAndExceptions(dateKey);
+
+    await db.$transaction(
+      async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${dateKey}))`;
+        await tx.$queryRaw`SELECT id FROM "Booking" WHERE id = ${bookingId}::uuid FOR UPDATE`;
+        await expireStaleHolds(tx, now, 100);
+
+        const current = await tx.booking.findUnique({
+          where: { id: bookingId },
+          include: { slotLock: true },
+        });
+        if (!current) throw new DecisionError("NOT_FOUND");
+        if (!canCancel(current) || !current.slotLock || current.slotLock.releasedAt) {
+          throw new DecisionError("INVALID_STATE");
+        }
+
+        const durationMinutes = Math.round(
+          (current.endAt.getTime() - current.startAt.getTime()) / 60_000,
+        );
+        const others = (await activeLocksForDay(tx, dateKey, settings.timezone)).filter(
+          (interval) =>
+            !(
+              interval.startAt.getTime() === current.slotLock!.startAt.getTime() &&
+              interval.endAt.getTime() === current.slotLock!.endAt.getTime()
+            ),
+        );
+
+        const availability = getDayAvailability({
+          dateKey,
+          now,
+          timezone: settings.timezone,
+          rules,
+          exceptions,
+          bookedIntervals: others,
+          durationMinutes,
+          bufferMinutes: settings.bufferMinutes,
+          dailyMaxBookings: settings.dailyMaxBookings,
+          bookingWindowDays: settings.bookingWindowDays,
+        });
+        const slot = availability.slots.find(
+          (candidate) => candidate.start.getTime() === requestedStart.getTime(),
+        );
+        if (!slot) throw new SlotUnavailableError();
+
+        await tx.slotLock.update({
+          where: { id: current.slotLock.id },
+          data: { startAt: slot.start, endAt: slot.end },
+        });
+        await tx.booking.update({
+          where: { id: current.id },
+          data: { startAt: slot.start, endAt: slot.end, timezone: settings.timezone },
+        });
+        await tx.bookingStatusHistory.create({
+          data: {
+            bookingId: current.id,
+            fromStatus: current.status,
+            toStatus: current.status,
+            adminId: admin.id,
+            note: `Rescheduled from ${current.startAt.toISOString()} to ${slot.start.toISOString()}`,
+          },
+        });
+        await tx.auditLog.create({
+          data: {
+            adminId: admin.id,
+            action: "booking.rescheduled",
+            entityType: "Booking",
+            entityId: current.id,
+            metadata: {
+              reference: current.publicReference,
+              from: current.startAt.toISOString(),
+              to: slot.start.toISOString(),
+            },
+          },
+        });
+      },
+      { maxWait: 15_000, timeout: 30_000 },
+    );
+    return { ok: true, bookingId };
+  } catch (error) {
+    if (error instanceof DecisionError) {
+      return { ok: false, code: error.code === "NOT_FOUND" ? "NOT_FOUND" : "INVALID_STATE" };
+    }
+    if (error instanceof SlotUnavailableError || isExclusionViolation(error)) {
+      return { ok: false, code: "SLOT_UNAVAILABLE" };
+    }
+    console.error("Reschedule failed", error instanceof Error ? error.name : "unknown");
+    return { ok: false, code: "DATABASE" };
+  }
+}
+
 class DecisionError extends Error {
   constructor(
     public readonly code:

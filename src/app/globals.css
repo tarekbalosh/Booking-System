@@ -1,8 +1,9 @@
+@import url("https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap");
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "SF Arabic", "Noto Kufi Arabic", "Segoe UI", Tahoma, "Helvetica Neue",
-    Arial, sans-serif;
+  --font-sans: "Cairo", "Plus Jakarta Sans", "SF Arabic", "Noto Kufi Arabic", "Segoe UI",
+    Tahoma, "Helvetica Neue", Arial, sans-serif;
   --color-brand-50: #f0fdfa;
   --color-brand-100: #ccfbf1;
   --color-brand-200: #99f6e4;
@@ -27,11 +28,55 @@ body {
   color: var(--color-slate-900);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
 
 :focus-visible {
   outline: 2px solid var(--color-brand-600);
   outline-offset: 2px;
+}
+
+/* Admin design tokens: scoped so the public site keeps its own look. */
+.admin-shell {
+  --admin-bg: #f8fafc;
+  --admin-surface: #ffffff;
+  --admin-text: #172033;
+  --admin-muted: #64748b;
+  --admin-border: #e2e8f0;
+  font-family: "IBM Plex Sans Arabic", "Plus Jakarta Sans", "Cairo", "Segoe UI", Tahoma, sans-serif;
+  background-color: var(--admin-bg);
+  color: var(--admin-text);
+  line-height: 1.6;
+}
+
+/* Keep Latin tokens (emails, phones, references, times) in natural LTR order
+   inside RTL text without reversing them. */
+.ltr-token {
+  direction: ltr;
+  unicode-bidi: isolate;
+  display: inline-block;
+  text-align: start;
+}
+
+@keyframes admin-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.admin-pop {
+  animation: admin-pop 120ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-pop {
+    animation: none;
+  }
 }
 
 @layer utilities {

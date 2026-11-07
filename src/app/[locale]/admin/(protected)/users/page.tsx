@@ -33,6 +33,20 @@ export default async function AdminUsersPage({
 
   const users = await db.adminUser.findMany({
     orderBy: [{ role: "asc" }, { createdAt: "asc" }],
+    // Never select passwordHash; only the active-session count is needed.
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      active: true,
+      lastLoginAt: true,
+      createdAt: true,
+      updatedAt: true,
+      failedLoginAttempts: true,
+      lockedUntil: true,
+      _count: { select: { sessions: { where: { expiresAt: { gt: new Date() } } } } },
+    },
   });
 
   const editingUser = query.edit
@@ -258,6 +272,7 @@ export default async function AdminUsersPage({
                 <th className="px-4 py-3 font-medium">{dict.admin.role}</th>
                 <th className="px-4 py-3 font-medium">{dict.common.status}</th>
                 <th className="px-4 py-3 font-medium">آخر تسجيل دخول</th>
+                <th className="px-4 py-3 font-medium">{locale === "ar" ? "الجلسات النشطة" : "Active sessions"}</th>
                 <th className="px-4 py-3 font-medium text-end">{dict.common.details}</th>
               </tr>
             </thead>
@@ -300,6 +315,7 @@ export default async function AdminUsersPage({
                   <td className="px-4 py-3 text-xs text-slate-500">
                     {user.lastLoginAt ? formatDateTime(user.lastLoginAt, timezone, locale) : "—"}
                   </td>
+                  <td className="px-4 py-3 text-xs text-slate-600">{user._count.sessions}</td>
                   <td className="px-4 py-3 text-end">
                     <a
                       href={`/${locale}/admin/users?edit=${user.id}`}
