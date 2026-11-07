@@ -24,7 +24,13 @@ export function AdminLoginForm({
 
       {state?.error && (
         <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
-          {state.error === "locked" ? strings.locked : strings.invalid}
+          {state.error === "locked"
+            ? strings.locked
+            : state.error === "server"
+            ? (locale === "ar"
+                ? "تعذر الاتصال بقاعدة البيانات على الخادم. تأكد من ضبط متغير DATABASE_URL في إعدادات Vercel."
+                : "Database connection failed on the server. Ensure DATABASE_URL is configured in Vercel settings.")
+            : strings.invalid}
         </p>
       )}
 

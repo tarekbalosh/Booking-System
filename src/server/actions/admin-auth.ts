@@ -7,7 +7,7 @@ import { authenticateAdmin } from "@/lib/auth/login";
 import { loginSchema } from "@/lib/validation/schemas";
 import { isLocale } from "@/lib/i18n/config";
 
-export type LoginState = { error: "invalid" | "locked" | "missing" } | null;
+export type LoginState = { error: "invalid" | "locked" | "missing" | "server" } | null;
 
 export async function loginAction(
   _previous: LoginState,
@@ -27,11 +27,16 @@ export async function loginAction(
   });
   if (!parsed.success) return { error: "invalid" };
 
-  const result = await authenticateAdmin(parsed.data.email, parsed.data.password);
-  if (!result.ok) return { error: result.reason };
+  try {
+    const result = await authenticateAdmin(parsed.data.email, parsed.data.password);
+    if (!result.ok) return { error: result.reason };
 
-  const userAgent = (await headers()).get("user-agent");
-  await createAdminSession(result.admin.id, userAgent);
+    const userAgent = (await headers()).get("user-agent");
+    await createAdminSession(result.admin.id, userAgent);
+  } catch (err) {
+    console.error("[loginAction] Failed:", err);
+    return { error: "server" };
+  }
   redirect(next);
 }
 
