@@ -25,6 +25,48 @@ describe("Validation Schemas & Policy Tests", () => {
       expect(result.success).toBe(true);
     });
 
+    it("accepts 'other' service when a non-empty customServiceTitle is provided", () => {
+      const result = createBookingSchema.safeParse({
+        ...validBooking,
+        serviceId: "other",
+        customServiceTitle: "استشارة قانونية خاصة للعقود التجارية",
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.customServiceTitle).toBe("استشارة قانونية خاصة للعقود التجارية");
+      }
+    });
+
+    it("trims leading and trailing whitespace on customServiceTitle", () => {
+      const result = createBookingSchema.safeParse({
+        ...validBooking,
+        serviceId: "other",
+        customServiceTitle: "   استشارة مالية مخصصة   ",
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.customServiceTitle).toBe("استشارة مالية مخصصة");
+      }
+    });
+
+    it("rejects 'other' service when customServiceTitle is empty or whitespace", () => {
+      const empty = createBookingSchema.safeParse({
+        ...validBooking,
+        serviceId: "other",
+        customServiceTitle: "   ",
+      });
+      expect(empty.success).toBe(false);
+    });
+
+    it("rejects 'other' service when customServiceTitle exceeds 300 characters", () => {
+      const tooLong = createBookingSchema.safeParse({
+        ...validBooking,
+        serviceId: "other",
+        customServiceTitle: "أ".repeat(301),
+      });
+      expect(tooLong.success).toBe(false);
+    });
+
     it("rejects booking if consultation topic is missing or too short", () => {
       const result = createBookingSchema.safeParse({
         ...validBooking,

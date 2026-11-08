@@ -18,7 +18,8 @@ export type BookingSummaryData = {
   currencySnapshot: string;
   expiresAt: Date;
   createdAt: Date;
-  service: { titleAr: string; titleEn: string };
+  customServiceTitle?: string | null;
+  service: { titleAr: string; titleEn: string } | null;
   method: { nameAr: string; nameEn: string };
 };
 
@@ -88,13 +89,26 @@ export function BookingSummary({
           })}
         </Detail>
         <Detail label={dict.statusPage.service}>
-          {locale === "ar" ? booking.service.titleAr : booking.service.titleEn}
+          {booking.service ? (
+            locale === "ar" ? booking.service.titleAr : booking.service.titleEn
+          ) : (
+            <span className="inline-flex flex-wrap items-center gap-1.5">
+              <span className="rounded bg-brand-100 px-1.5 py-0.5 text-xs font-bold text-brand-800">
+                {locale === "ar" ? "أخرى" : "Other"}
+              </span>
+              <span>{booking.customServiceTitle || (locale === "ar" ? "استشارة مخصصة" : "Custom consultation")}</span>
+            </span>
+          )}
         </Detail>
         <Detail label={dict.statusPage.method}>
           {locale === "ar" ? booking.method.nameAr : booking.method.nameEn}
         </Detail>
         <Detail label={dict.statusPage.price}>
-          {formatPrice(booking.priceSnapshot.toString(), booking.currencySnapshot, locale)}
+          {booking.service ? (
+            formatPrice(booking.priceSnapshot.toString(), booking.currencySnapshot, locale)
+          ) : (
+            <span>{locale === "ar" ? "تُحدد بعد المراجعة" : "Determined upon review"}</span>
+          )}
           <span className="block text-xs font-normal text-slate-500">
             {dict.statusPage.payment}: {dict.payment[paymentKey[booking.paymentStatus]]}
           </span>

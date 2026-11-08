@@ -239,7 +239,11 @@ export default async function AdminCalendarPage({
                         </div>
                         <p className="mt-1 truncate font-medium">{b.customerName}</p>
                         <p className="truncate text-[11px] opacity-75">
-                          {locale === "ar" ? b.service.titleAr : b.service.titleEn}
+                          {b.service
+                            ? locale === "ar"
+                              ? b.service.titleAr
+                              : b.service.titleEn
+                            : `${locale === "ar" ? "أخرى" : "Other"}${b.customServiceTitle ? `: ${b.customServiceTitle}` : ""}`}
                         </p>
                       </Link>
                     );

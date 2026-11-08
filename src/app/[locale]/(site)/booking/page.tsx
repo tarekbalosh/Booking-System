@@ -63,11 +63,14 @@ export default async function BookingPage({
 
   const start = todayKey(settings.timezone);
   const maxDate = addDaysToKey(start, Math.max(0, settings.bookingWindowDays - 1));
-  const initialServiceId = serviceSlug
-    ? services.find((item) => item.slug === serviceSlug)?.id
-    : undefined;
+  const initialServiceId =
+    serviceSlug === "other"
+      ? "other"
+      : serviceSlug
+        ? services.find((item) => item.slug === serviceSlug)?.id
+        : undefined;
 
-  const unavailable = services.length === 0 || methods.length === 0;
+  const unavailable = methods.length === 0;
 
   return (
     <div className="relative isolate overflow-x-hidden py-6 sm:py-10 lg:py-12">

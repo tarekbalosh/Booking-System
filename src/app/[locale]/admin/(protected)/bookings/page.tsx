@@ -55,6 +55,7 @@ export default async function AdminBookingsPage({
   }
 
   const status = parseBookingStatus(query.status);
+  const isOtherServiceFilter = query.service === "other";
   const serviceId = z.uuid().safeParse(query.service).success ? query.service : undefined;
   const methodId = z.uuid().safeParse(query.method).success ? query.method : undefined;
   const sort = query.sort === "oldest" || query.sort === "appointment" ? query.sort : "newest";
@@ -65,7 +66,8 @@ export default async function AdminBookingsPage({
 
   const where: Prisma.BookingWhereInput = {};
   if (status) where.status = status;
-  if (serviceId) where.serviceId = serviceId;
+  if (isOtherServiceFilter) where.serviceId = null;
+  else if (serviceId) where.serviceId = serviceId;
   if (methodId) where.methodId = methodId;
   if (search) {
     where.OR = [
@@ -74,6 +76,7 @@ export default async function AdminBookingsPage({
       { customerEmail: { contains: search.toLowerCase(), mode: "insensitive" } },
       { customerPhone: { contains: search.replace(/\s+/g, "") } },
       { customerPhone: { contains: search } },
+      { customServiceTitle: { contains: search, mode: "insensitive" } },
     ];
   }
   if (fromKey || toKey) {
@@ -259,6 +262,7 @@ export default async function AdminBookingsPage({
                   {locale === "ar" ? service.titleAr : service.titleEn}
                 </option>
               ))}
+              <option value="other">{locale === "ar" ? "أخرى (استشارة مخصصة)" : "Other (Custom request)"}</option>
             </select>
           </div>
           <div>
@@ -421,12 +425,28 @@ export default async function AdminBookingsPage({
                         <span className="ltr-token tabular-nums">{booking.customerPhone}</span>
                       </td>
                       <td className={`${cell} text-slate-700`}>
-                        <span
-                          className="block max-w-[180px] truncate"
-                          title={locale === "ar" ? booking.service.titleAr : booking.service.titleEn}
-                        >
-                          {locale === "ar" ? booking.service.titleAr : booking.service.titleEn}
-                        </span>
+                        {booking.service ? (
+                          <span
+                            className="block max-w-[180px] truncate"
+                            title={locale === "ar" ? booking.service.titleAr : booking.service.titleEn}
+                          >
+                            {locale === "ar" ? booking.service.titleAr : booking.service.titleEn}
+                          </span>
+                        ) : (
+                          <div className="max-w-[200px]">
+                            <span className="inline-block rounded bg-brand-100 px-1.5 py-0.5 text-[11px] font-bold text-brand-800">
+                              {locale === "ar" ? "أخرى" : "Other"}
+                            </span>
+                            {booking.customServiceTitle && (
+                              <span
+                                className="mt-0.5 block truncate text-xs font-medium text-slate-700"
+                                title={booking.customServiceTitle}
+                              >
+                                {booking.customServiceTitle}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td className={`${cell} whitespace-nowrap text-slate-700`}>
                         <span className="inline-flex items-center gap-2">

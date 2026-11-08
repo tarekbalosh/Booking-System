@@ -73,6 +73,20 @@ describe("WhatsApp Notification Integration", () => {
       expect(body).toContain("could not be confirmed");
       expect(body).toContain("CB-2026-X7K9");
     });
+
+    it("includes custom service description in notifications when service is null (Other)", () => {
+      const customBooking: NotificationBooking = {
+        ...mockBooking,
+        service: null,
+        customServiceTitle: "مراجعة هيكلية الشركة",
+      };
+      const adminBody = buildNotificationBody("NEW_BOOKING_ADMIN", customBooking, "ar");
+      expect(adminBody).toContain("مراجعة هيكلية الشركة");
+
+      const approvedBody = buildNotificationBody("CUSTOMER_APPROVED", customBooking, "ar");
+      expect(approvedBody).toContain("أخرى (مراجعة هيكلية الشركة)");
+      expect(approvedBody).toContain("تُحدد بعد المراجعة");
+    });
   });
 
   describe("Idempotency key generation", () => {

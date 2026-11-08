@@ -86,7 +86,13 @@ export default async function AdminCustomerDetailPage({
               {customer.bookings.map((b) => (
                 <tr key={b.id} className="hover:bg-sand-50">
                   <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-slate-600">{b.publicReference}</td>
-                  <td className="px-4 py-3 text-slate-700">{locale === "ar" ? b.service.titleAr : b.service.titleEn}</td>
+                  <td className="px-4 py-3 text-slate-700">
+                    {b.service
+                      ? locale === "ar"
+                        ? b.service.titleAr
+                        : b.service.titleEn
+                      : `${locale === "ar" ? "أخرى" : "Other"}${b.customServiceTitle ? `: ${b.customServiceTitle}` : ""}`}
+                  </td>
                   <td className="px-4 py-3 text-slate-700">{locale === "ar" ? b.method.nameAr : b.method.nameEn}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-slate-700">{formatDateTime(b.startAt, b.timezone, locale)}</td>
                   <td className="px-4 py-3"><StatusBadge status={b.status} dict={dict} /></td>

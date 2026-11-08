@@ -7,6 +7,7 @@ import { hasPermission } from "@/lib/auth/permissions";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { getAdminExtra } from "@/lib/i18n/admin-extra";
 import { getPublicAvailability } from "@/server/services/bookings";
+import { OTHER_SERVICE_ID } from "@/lib/validation/schemas";
 import { isValidDateKey } from "@/lib/timezone";
 import { isLocale } from "@/lib/i18n/config";
 import { canApprove, canCancel, canReject } from "@/lib/booking/status";
@@ -81,7 +82,9 @@ export default async function BookingDetailPage({
   const canMove = canDecide && canCancel(booking) && booking.startAt.getTime() > now.getTime();
   const dateKey = rdate && isValidDateKey(rdate) ? rdate : undefined;
   const slotResult =
-    canMove && dateKey ? await getPublicAvailability(booking.serviceId, dateKey).catch(() => null) : null;
+    canMove && dateKey
+      ? await getPublicAvailability(booking.serviceId ?? OTHER_SERVICE_ID, dateKey).catch(() => null)
+      : null;
 
   return (
     <div className="space-y-6">
@@ -153,7 +156,18 @@ export default async function BookingDetailPage({
                 </a>
               </Item>
               <Item label={dict.admin.service}>
-                {locale === "ar" ? booking.service.titleAr : booking.service.titleEn}
+                {booking.service ? (
+                  locale === "ar" ? booking.service.titleAr : booking.service.titleEn
+                ) : (
+                  <span className="inline-flex flex-wrap items-center gap-1.5">
+                    <span className="rounded bg-brand-100 px-1.5 py-0.5 text-xs font-bold text-brand-800">
+                      {locale === "ar" ? "أخرى" : "Other"}
+                    </span>
+                    <span>
+                      {booking.customServiceTitle || (locale === "ar" ? "استشارة مخصصة" : "Custom consultation")}
+                    </span>
+                  </span>
+                )}
               </Item>
               <Item label={dict.admin.method}>
                 {locale === "ar" ? booking.method.nameAr : booking.method.nameEn}
@@ -165,7 +179,11 @@ export default async function BookingDetailPage({
                 })}
               </Item>
               <Item label={dict.statusPage.price}>
-                {formatPrice(booking.priceSnapshot.toString(), booking.currencySnapshot, locale)}
+                {booking.service ? (
+                  formatPrice(booking.priceSnapshot.toString(), booking.currencySnapshot, locale)
+                ) : (
+                  <span>{locale === "ar" ? "تُحدد بعد المراجعة" : "Determined upon review"}</span>
+                )}
               </Item>
               <Item label={dict.statusPage.payment}>{dict.payment[paymentKey(booking.paymentStatus)]}</Item>
               <Item label={dict.common.createdAt}>

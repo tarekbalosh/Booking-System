@@ -146,31 +146,32 @@ model AvailabilityException {
 }
 
 model Booking {
-  id                String        @id @default(uuid()) @db.Uuid
-  publicReference   String        @unique
-  accessTokenHash   String
-  customerName      String
-  customerEmail     String
-  customerPhone     String
-  consultationTopic String
-  serviceId         String        @db.Uuid
-  methodId          String        @db.Uuid
-  startAt           DateTime
-  endAt             DateTime
-  timezone          String
-  locale            String        @default("ar") @db.VarChar(2)
-  status            BookingStatus @default(PENDING_APPROVAL)
-  paymentStatus     PaymentStatus @default(UNPAID)
-  priceSnapshot     Decimal       @db.Decimal(10, 2)
-  currencySnapshot  String        @db.VarChar(3)
-  expiresAt         DateTime
-  approvedAt        DateTime?
-  rejectedAt        DateTime?
-  adminNotes        String?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  id                  String        @id @default(uuid()) @db.Uuid
+  publicReference     String        @unique
+  accessTokenHash     String
+  customerName        String
+  customerEmail       String
+  customerPhone       String
+  consultationTopic   String
+  serviceId           String?       @db.Uuid
+  customServiceTitle  String?
+  methodId            String        @db.Uuid
+  startAt             DateTime
+  endAt               DateTime
+  timezone            String
+  locale              String        @default("ar") @db.VarChar(2)
+  status              BookingStatus @default(PENDING_APPROVAL)
+  paymentStatus       PaymentStatus @default(UNPAID)
+  priceSnapshot       Decimal       @db.Decimal(10, 2)
+  currencySnapshot    String        @db.VarChar(3)
+  expiresAt           DateTime
+  approvedAt          DateTime?
+  rejectedAt          DateTime?
+  adminNotes          String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
-  service        ConsultationService    @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  service        ConsultationService?   @relation(fields: [serviceId], references: [id], onDelete: Restrict)
   method         ConsultationMethod     @relation(fields: [methodId], references: [id], onDelete: Restrict)
   slotLock       SlotLock?
   notifications  NotificationLog[]

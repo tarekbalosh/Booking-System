@@ -12,7 +12,8 @@ export type NotificationBooking = {
   locale: string;
   priceSnapshot: { toString(): string } | string | number;
   currencySnapshot: string;
-  service: { titleAr: string; titleEn: string };
+  customServiceTitle?: string | null;
+  service: { titleAr: string; titleEn: string } | null;
   method: { nameAr: string; nameEn: string; instructionsAr?: string | null; instructionsEn?: string | null };
 };
 
@@ -32,14 +33,21 @@ export function buildNotificationBody(
 ): string {
   const locale = recipientLocale;
   const dateTime = formatDateTime(booking.startAt, booking.timezone, locale);
-  const service = locale === "ar" ? booking.service.titleAr : booking.service.titleEn;
+  const service = booking.service
+    ? locale === "ar"
+      ? booking.service.titleAr
+      : booking.service.titleEn
+    : `${locale === "ar" ? "أخرى" : "Other"}${booking.customServiceTitle ? ` (${booking.customServiceTitle})` : ""}`;
   const method = locale === "ar" ? booking.method.nameAr : booking.method.nameEn;
 
   if (type === "NEW_BOOKING_ADMIN") {
+    const adminServiceLabel = booking.service
+      ? `${booking.service.titleAr} / ${booking.service.titleEn}`
+      : `أخرى / Other: ${booking.customServiceTitle ?? "—"}`;
     return [
       "طلب استشارة جديد / New consultation request",
       `المرجع / Reference: ${booking.publicReference}`,
-      `الخدمة / Service: ${booking.service.titleAr} / ${booking.service.titleEn}`,
+      `الخدمة / Service: ${adminServiceLabel}`,
       `الموعد / Time: ${dateTime} (${booking.timezone})`,
       `الطريقة / Method: ${booking.method.nameAr} / ${booking.method.nameEn}`,
       `الموضوع / Topic: ${shortTopic(booking.consultationTopic)}`,
@@ -47,7 +55,11 @@ export function buildNotificationBody(
     ].join("\n");
   }
 
-  const price = `${booking.priceSnapshot.toString()} ${booking.currencySnapshot}`;
+  const price = booking.service
+    ? `${booking.priceSnapshot.toString()} ${booking.currencySnapshot}`
+    : locale === "ar"
+      ? "تُحدد بعد المراجعة"
+      : "Determined upon review";
 
   if (type === "CUSTOMER_APPROVED") {
     if (locale === "ar") {

@@ -178,8 +178,8 @@ export async function getOverviewStats(timezone: string) {
     })),
     upcoming,
     popularServices: serviceGroups.map((row) => ({
-      titleAr: serviceName.get(row.serviceId)?.titleAr ?? "—",
-      titleEn: serviceName.get(row.serviceId)?.titleEn ?? "—",
+      titleAr: row.serviceId ? (serviceName.get(row.serviceId)?.titleAr ?? "—") : "أخرى (استشارة مخصصة)",
+      titleEn: row.serviceId ? (serviceName.get(row.serviceId)?.titleEn ?? "—") : "Other (Custom request)",
       count: row._count._all,
     })),
     popularMethods: methodGroups.map((row) => ({

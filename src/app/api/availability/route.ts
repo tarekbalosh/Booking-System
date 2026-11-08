@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getPublicAvailability } from "@/server/services/bookings";
-import { dateKeySchema } from "@/lib/validation/schemas";
+import { dateKeySchema, OTHER_SERVICE_ID } from "@/lib/validation/schemas";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const querySchema = z.object({
-  serviceId: z.uuid(),
+  serviceId: z.uuid().or(z.literal(OTHER_SERVICE_ID)),
   date: dateKeySchema,
 });
 

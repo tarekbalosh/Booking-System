@@ -19,9 +19,17 @@ export const dateKeySchema = z
   .string()
   .refine((value) => isValidDateKey(value), "Please select a valid date.");
 
+export const OTHER_SERVICE_ID = "other";
+
 export const createBookingSchema = z
   .object({
-    serviceId: z.uuid(),
+    serviceId: z.uuid().or(z.literal(OTHER_SERVICE_ID)),
+    customServiceTitle: z
+      .string()
+      .trim()
+      .max(300)
+      .optional()
+      .or(z.literal("")),
     methodId: z.uuid(),
     startAt: z
       .string()
@@ -34,7 +42,18 @@ export const createBookingSchema = z
     consent: z.literal(true, "You must accept the privacy policy and booking terms."),
     locale: z.enum(["ar", "en"]).default("ar"),
   })
-  .strict();
+  .strict()
+  .superRefine((data, ctx) => {
+    if (data.serviceId === OTHER_SERVICE_ID) {
+      if (!data.customServiceTitle || data.customServiceTitle.trim().length < 2) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["customServiceTitle"],
+          message: "يرجى كتابة نوع الاستشارة المطلوبة.",
+        });
+      }
+    }
+  });
 
 export type CreateBookingPayload = z.infer<typeof createBookingSchema>;
 

@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { createBookingAction, type BookingActionState } from "@/server/actions/booking";
+import { OTHER_SERVICE_ID } from "@/lib/validation/schemas";
 import { addDaysToKey, formatDateTime } from "@/lib/timezone";
 import { formatPrice } from "@/lib/format";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -129,7 +130,9 @@ export function BookingForm({
   initialServiceId?: string;
 }) {
   const [step, setStep] = useState(1);
-  const [serviceId, setServiceId] = useState(initialServiceId ?? services[0]?.id ?? "");
+  const [serviceId, setServiceId] = useState(initialServiceId ?? services[0]?.id ?? OTHER_SERVICE_ID);
+  const [customServiceTitle, setCustomServiceTitle] = useState("");
+  const otherInputRef = useRef<HTMLInputElement>(null);
   const [methodId, setMethodId] = useState(methods[0]?.id ?? "");
   const [dateKey, setDateKey] = useState(todayKey);
   const [weekOffset, setWeekOffset] = useState(0);
@@ -153,6 +156,7 @@ export function BookingForm({
     : rawSlotsState;
   const slots = fetchedKey === currentKey ? rawSlots : [];
 
+  const isOtherService = serviceId === OTHER_SERVICE_ID;
   const service = services.find((item) => item.id === serviceId);
   const method = methods.find((item) => item.id === methodId);
   const selectedSlot = slots.find((slot) => slot.startAt === selectedStart);
@@ -205,10 +209,38 @@ export function BookingForm({
     };
   }, [serviceId, dateKey]);
 
+  function selectOtherCard() {
+    setServiceId(OTHER_SERVICE_ID);
+    setSelectedStart("");
+    setClientError(null);
+    otherInputRef.current?.focus();
+  }
+
   function goToStepTwo() {
     if (!serviceId || !methodId) {
       setClientError(strings.requiredFields);
       return;
+    }
+    if (serviceId === OTHER_SERVICE_ID) {
+      const trimmedCustom = customServiceTitle.trim();
+      if (!trimmedCustom) {
+        setClientError(
+          locale === "ar"
+            ? "يرجى كتابة نوع الاستشارة التي تحتاجها للمتابعة."
+            : "Please enter the consultation type you need to continue.",
+        );
+        otherInputRef.current?.focus();
+        return;
+      }
+      if (trimmedCustom.length > 300) {
+        setClientError(
+          locale === "ar"
+            ? "وصف الاستشارة يجب ألا يتجاوز 300 حرف."
+            : "Custom consultation description must be at most 300 characters.",
+        );
+        otherInputRef.current?.focus();
+        return;
+      }
     }
     setClientError(null);
     setStep(2);
@@ -350,7 +382,7 @@ export function BookingForm({
                   </p>
                 </div>
                 <span className="rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700">
-                  {services.length} {locale === "ar" ? "خيارات متاحة" : "Options"}
+                  {services.length + 1} {locale === "ar" ? "خيارات متاحة" : "Options"}
                 </span>
               </div>
 
@@ -442,6 +474,114 @@ export function BookingForm({
                     </button>
                   );
                 })}
+
+                {/* "Other" (أخرى) Custom Consultation Service Card */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={isOtherService}
+                  onClick={selectOtherCard}
+                  onKeyDown={(event) => {
+                    if (
+                      event.target === event.currentTarget &&
+                      (event.key === "Enter" || event.key === " ")
+                    ) {
+                      event.preventDefault();
+                      selectOtherCard();
+                    }
+                  }}
+                  className={`group relative flex w-full cursor-pointer flex-col justify-between rounded-2xl border p-4 text-start transition-all duration-200 sm:p-5 ${
+                    isOtherService
+                      ? "border-brand-600 bg-brand-50/50 shadow-md shadow-brand-600/5 ring-2 ring-brand-500/20"
+                      : "border-slate-200/90 bg-white hover:border-brand-300 hover:bg-slate-50/60 hover:shadow-sm"
+                  }`}
+                >
+                  <div className="flex w-full items-start justify-between gap-3 sm:gap-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-sm font-bold text-slate-900 group-hover:text-brand-900 sm:text-base">
+                          {locale === "ar" ? "أخرى" : "Other"}
+                        </h3>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
+                          {locale === "ar" ? "استشارة مخصصة" : "Custom request"}
+                        </span>
+                      </div>
+
+                      <div className="mt-2.5">
+                        <input
+                          ref={otherInputRef}
+                          type="text"
+                          value={customServiceTitle}
+                          maxLength={300}
+                          onFocus={() => {
+                            if (serviceId !== OTHER_SERVICE_ID) {
+                              setServiceId(OTHER_SERVICE_ID);
+                              setSelectedStart("");
+                              setClientError(null);
+                            }
+                          }}
+                          onChange={(event) => {
+                            setCustomServiceTitle(event.target.value);
+                            if (serviceId !== OTHER_SERVICE_ID) {
+                              setServiceId(OTHER_SERVICE_ID);
+                              setSelectedStart("");
+                            }
+                            if (clientError) setClientError(null);
+                          }}
+                          placeholder={
+                            locale === "ar"
+                              ? "اكتب نوع الاستشارة التي تحتاجها..."
+                              : "Type the consultation you need..."
+                          }
+                          aria-label={
+                            locale === "ar"
+                              ? "اكتب نوع الاستشارة التي تحتاجها"
+                              : "Custom consultation type"
+                          }
+                          className={`w-full rounded-xl border px-3.5 py-2.5 text-xs font-medium text-slate-900 placeholder:text-slate-400 transition-all duration-200 focus:outline-none sm:text-sm ${
+                            isOtherService
+                              ? "border-brand-400/90 bg-white shadow-2xs ring-2 ring-brand-500/15 focus:border-brand-600 focus:ring-4 focus:ring-brand-500/20"
+                              : "border-slate-200/80 bg-slate-50/70 group-hover:border-brand-200 group-hover:bg-white"
+                          }`}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Radio Checkbox Indicator */}
+                    <div
+                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-all ${
+                        isOtherService
+                          ? "border-brand-600 bg-brand-600 text-white shadow-sm"
+                          : "border-slate-300 bg-white group-hover:border-brand-400"
+                      }`}
+                    >
+                      {isOtherService && (
+                        <svg
+                          className="h-3.5 w-3.5 stroke-[3]"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="m4.5 12.75 6 6 9-13.5"
+                          />
+                        </svg>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Card Footer */}
+                  <div className="mt-3 flex items-center justify-between border-t border-slate-100/80 pt-3">
+                    <span className="text-xs text-slate-500">
+                      {locale === "ar" ? "قيمة الاستشارة" : "Consultation Fee"}
+                    </span>
+                    <span className="text-xs font-bold text-brand-700 sm:text-sm">
+                      {locale === "ar" ? "تُحدد بعد المراجعة" : "Determined upon review"}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -837,10 +977,11 @@ export function BookingForm({
         )}
 
         {/* STEP 3: CLIENT DETAILS & CONFIRMATION */}
-        {step === 3 && service && method && selectedSlot && (
+        {step === 3 && (service || isOtherService) && method && selectedSlot && (
           <form action={formAction} className="space-y-6" aria-label={strings.step3}>
             <input type="hidden" name="locale" value={locale} />
-            <input type="hidden" name="serviceId" value={service.id} />
+            <input type="hidden" name="serviceId" value={isOtherService ? OTHER_SERVICE_ID : service!.id} />
+            <input type="hidden" name="customServiceTitle" value={isOtherService ? customServiceTitle.trim() : ""} />
             <input type="hidden" name="methodId" value={method.id} />
             <input type="hidden" name="startAt" value={selectedSlot.startAt} />
 
@@ -1070,13 +1211,20 @@ export function BookingForm({
           <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
             <dt className="text-xs font-semibold text-slate-500">{strings.summaryService}</dt>
             <dd className="mt-1 font-bold text-slate-900 break-words">
-              {service?.title ?? (
-                <span className="text-xs font-normal text-slate-400">
-                  {locale === "ar" ? "لم تحدد الخدمة بعد" : "Not selected yet"}
+              {isOtherService ? (
+                <span>
+                  {locale === "ar" ? "أخرى" : "Other"}
+                  {customServiceTitle.trim() ? `: ${customServiceTitle.trim()}` : ""}
                 </span>
+              ) : (
+                service?.title ?? (
+                  <span className="text-xs font-normal text-slate-400">
+                    {locale === "ar" ? "لم تحدد الخدمة بعد" : "Not selected yet"}
+                  </span>
+                )
               )}
             </dd>
-            {service && (
+            {service && !isOtherService && (
               <span className="mt-1.5 inline-flex items-center gap-1 rounded-md bg-white px-2 py-0.5 text-[11px] font-medium text-slate-600 shadow-2xs">
                 ⏱ {service.durationMinutes} {common.minutes}
               </span>
@@ -1113,7 +1261,15 @@ export function BookingForm({
             <div className="flex items-baseline justify-between gap-2">
               <dt className="text-xs font-bold text-brand-900">{strings.summaryPrice}</dt>
               <dd className="text-lg sm:text-xl font-black text-brand-800">
-                {service ? formatPrice(service.price, service.currency, locale) : "—"}
+                {isOtherService ? (
+                  <span className="text-sm font-bold">
+                    {locale === "ar" ? "تُحدد بعد المراجعة" : "Determined upon review"}
+                  </span>
+                ) : service ? (
+                  formatPrice(service.price, service.currency, locale)
+                ) : (
+                  "—"
+                )}
               </dd>
             </div>
             <p className="mt-1 text-[11px] leading-4 text-brand-700">

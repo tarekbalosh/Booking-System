@@ -20,6 +20,7 @@ import { canCancel, canReject } from "@/lib/booking/status";
 import { getBusinessSettings } from "@/lib/booking/settings";
 import {
   createBookingSchema,
+  OTHER_SERVICE_ID,
   type CreateBookingPayload,
 } from "@/lib/validation/schemas";
 import { expireStaleHolds, type Tx } from "@/server/services/expiry";
@@ -144,12 +145,17 @@ export async function getPublicAvailability(
   | { ok: false; code: BookingErrorCode; message: string }
 > {
   const db = getDb();
-  const service = await db.consultationService.findUnique({ where: { id: serviceId } });
-  if (!service || !service.active) {
-    return { ok: false, code: "SERVICE_UNAVAILABLE", message: "Service is not available." };
+  const settings = await getBusinessSettings();
+
+  let durationMinutes = settings.slotDurationMinutes;
+  if (serviceId !== OTHER_SERVICE_ID) {
+    const service = await db.consultationService.findUnique({ where: { id: serviceId } });
+    if (!service || !service.active) {
+      return { ok: false, code: "SERVICE_UNAVAILABLE", message: "Service is not available." };
+    }
+    durationMinutes = service.durationMinutes;
   }
 
-  const settings = await getBusinessSettings();
   const now = new Date();
 
   if (!isWithinBookingWindow(dateKey, now, settings.timezone, settings.bookingWindowDays)) {
@@ -174,7 +180,7 @@ export async function getPublicAvailability(
     rules,
     exceptions,
     bookedIntervals,
-    durationMinutes: service.durationMinutes,
+    durationMinutes,
     bufferMinutes: settings.bufferMinutes,
     dailyMaxBookings: settings.dailyMaxBookings,
     bookingWindowDays: settings.bookingWindowDays,
@@ -211,14 +217,22 @@ export async function createBookingRequest(
   }
 
   const db = getDb();
+  const isCustomService = payload.serviceId === OTHER_SERVICE_ID;
+  const customTitle = isCustomService ? payload.customServiceTitle?.trim() || null : null;
+
   const [service, method, settings] = await Promise.all([
-    db.consultationService.findUnique({ where: { id: payload.serviceId } }),
+    isCustomService
+      ? Promise.resolve(null)
+      : db.consultationService.findUnique({ where: { id: payload.serviceId } }),
     db.consultationMethod.findUnique({ where: { id: payload.methodId } }),
     getBusinessSettings(),
   ]);
 
-  if (!service || !service.active) {
+  if (!isCustomService && (!service || !service.active)) {
     return { ok: false, code: "SERVICE_UNAVAILABLE", message: "This service is not available." };
+  }
+  if (isCustomService && !customTitle) {
+    return { ok: false, code: "INVALID_INPUT", message: "Please specify your consultation request." };
   }
   if (!method || !method.active) {
     return {
@@ -227,6 +241,10 @@ export async function createBookingRequest(
       message: "This consultation method is not available.",
     };
   }
+
+  const durationMinutes = service ? service.durationMinutes : settings.slotDurationMinutes;
+  const priceSnapshot = service ? service.price : 0;
+  const currencySnapshot = service ? service.currency : "MYR";
 
   const dateKey = dateKeyInTimeZone(requestedStart, settings.timezone);
   if (!isWithinBookingWindow(dateKey, new Date(), settings.timezone, settings.bookingWindowDays)) {
@@ -261,7 +279,7 @@ export async function createBookingRequest(
           rules,
           exceptions,
           bookedIntervals,
-          durationMinutes: service.durationMinutes,
+          durationMinutes,
           bufferMinutes: settings.bufferMinutes,
           dailyMaxBookings: settings.dailyMaxBookings,
           bookingWindowDays: settings.bookingWindowDays,
@@ -282,7 +300,8 @@ export async function createBookingRequest(
             customerEmail: payload.customerEmail,
             customerPhone: payload.customerPhone,
             consultationTopic: payload.consultationTopic,
-            serviceId: service.id,
+            serviceId: service ? service.id : null,
+            customServiceTitle: customTitle,
             methodId: method.id,
             startAt: slot.start,
             endAt: slot.end,
@@ -290,8 +309,8 @@ export async function createBookingRequest(
             locale: payload.locale,
             status: "PENDING_APPROVAL",
             paymentStatus: "UNPAID",
-            priceSnapshot: service.price,
-            currencySnapshot: service.currency,
+            priceSnapshot,
+            currencySnapshot,
             expiresAt,
             slotLock: {
               create: { startAt: slot.start, endAt: slot.end },

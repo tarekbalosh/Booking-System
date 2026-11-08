@@ -18,6 +18,7 @@ export async function createBookingAction(
 
   const result = await createBookingRequest({
     serviceId: formData.get("serviceId"),
+    customServiceTitle: formData.get("customServiceTitle") ?? "",
     methodId: formData.get("methodId"),
     startAt: formData.get("startAt"),
     customerName: formData.get("customerName"),
